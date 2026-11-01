@@ -11,7 +11,7 @@ https://github.com/curiousdannii/remglk-rs
 
 #![allow(non_upper_case_globals)]
 
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::*;
 
@@ -177,14 +177,40 @@ pub const fn style_name(style: u32) -> &'static str {
     }
 }
 pub fn serialize_style_name<S>(style: &u32, s: S) -> Result<S::Ok, S::Error>
-where S: Serializer {
+where
+    S: Serializer,
+{
     if style <= &style_User2 {
         s.serialize_str(style_name(*style))
-    }
-    else {
+    } else {
         let mut res = String::from("user");
         res.push_str(&style.to_string());
         s.serialize_str(&res)
+    }
+}
+
+pub fn deserialize_style_name<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let name = String::deserialize(deserializer)?;
+    match name.as_str() {
+        "normal" => Ok(style_Normal),
+        "emphasized" => Ok(style_Emphasized),
+        "preformatted" => Ok(style_Preformatted),
+        "header" => Ok(style_Header),
+        "subheader" => Ok(style_Subheader),
+        "alert" => Ok(style_Alert),
+        "note" => Ok(style_Note),
+        "blockquote" => Ok(style_BlockQuote),
+        "input" => Ok(style_Input),
+        "user1" => Ok(style_User1),
+        "user2" => Ok(style_User2),
+        _ => name
+            .strip_prefix("user")
+            .and_then(|value| value.parse::<u32>().ok())
+            .filter(|&style| style > style_User2)
+            .ok_or_else(|| serde::de::Error::custom("invalid Glk style name")),
     }
 }
 
@@ -194,7 +220,7 @@ pub const wintype_Blank: u32 = 2;
 pub const wintype_TextBuffer: u32 = 3;
 pub const wintype_TextGrid: u32 = 4;
 pub const wintype_Graphics: u32 = 5;
-#[derive(Clone, Copy, Default, PartialEq, Serialize)]
+#[derive(Clone, Copy, Default, Deserialize, PartialEq, Serialize)]
 #[repr(C)]
 #[serde(rename_all = "lowercase")]
 pub enum WindowType {
@@ -207,7 +233,7 @@ pub enum WindowType {
     Grid = 4,
 }
 
-pub const winmethod_Left : u32 = 0x00;
+pub const winmethod_Left: u32 = 0x00;
 pub const winmethod_Right: u32 = 0x01;
 pub const winmethod_Above: u32 = 0x02;
 pub const winmethod_Below: u32 = 0x03;
@@ -232,10 +258,10 @@ pub const fileusage_TypeMask: u32 = 0x0f;
 pub enum FileType {
     #[default]
     Data = 0,
-    #[serde(rename="save")]
+    #[serde(rename = "save")]
     SavedGame,
     Transcript,
-    #[serde(rename="command")]
+    #[serde(rename = "command")]
     InputRecord,
 }
 pub fn file_type(filetype: u32) -> FileType {
@@ -262,7 +288,7 @@ pub const filemode_Write: u32 = 0x01;
 pub const filemode_Read: u32 = 0x02;
 pub const filemode_ReadWrite: u32 = 0x03;
 pub const filemode_WriteAppend: u32 = 0x05;
-#[derive(Clone, Copy, Default, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Copy, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[repr(C)]
 #[serde(rename_all = "lowercase")]
 pub enum FileMode {
@@ -348,7 +374,7 @@ pub const imagealign_InlineDown: u32 = 2;
 pub const imagealign_InlineCenter: u32 = 3;
 pub const imagealign_MarginLeft: u32 = 4;
 pub const imagealign_MarginRight: u32 = 5;
-#[derive(Clone, Copy, Default, PartialEq, Serialize)]
+#[derive(Clone, Copy, Default, Deserialize, PartialEq, Serialize)]
 #[repr(C)]
 #[serde(rename_all = "lowercase")]
 pub enum BufferWindowImageAlignment {

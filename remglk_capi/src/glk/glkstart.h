@@ -94,7 +94,9 @@ extern int glkunix_unserialize_object_list_entries(glkunix_unserialize_context_t
 
 /* This library offers the hooks necessary for an interpreter to
    implement autosave. */
-//#define GLKUNIX_AUTOSAVE_FEATURES (1)
+#ifndef GLKUNIX_AUTOSAVE_FEATURES
+#define GLKUNIX_AUTOSAVE_FEATURES (1)
+#endif
 
 #ifdef GLKUNIX_AUTOSAVE_FEATURES
 

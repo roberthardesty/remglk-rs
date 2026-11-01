@@ -20,19 +20,21 @@ pub struct GlkObject<T> {
 }
 
 impl<T> GlkObject<T>
-where T: Default {
+where
+    T: Default,
+{
     pub fn new(obj: T) -> Self {
         Self {
-            obj: Arc::new(Mutex::new(GlkObjectMetadata::new(obj)))
+            obj: Arc::new(Mutex::new(GlkObjectMetadata::new(obj))),
         }
     }
 
     pub fn new_cyclic<F>(data_fn: F) -> Self
-    where F: FnOnce(&GlkObjectWeak<T>) -> T {
+    where
+        F: FnOnce(&GlkObjectWeak<T>) -> T,
+    {
         Self {
-            obj: Arc::new_cyclic(|weak| {
-                Mutex::new(GlkObjectMetadata::new(data_fn(weak)))
-            })
+            obj: Arc::new_cyclic(|weak| Mutex::new(GlkObjectMetadata::new(data_fn(weak)))),
         }
     }
 
@@ -92,7 +94,10 @@ pub struct GlkObjectStore<T> {
 }
 
 impl<T> GlkObjectStore<T>
-where T: Default + GlkObjectClass, GlkObject<T>: Default + Eq {
+where
+    T: Default + GlkObjectClass,
+    GlkObject<T>: Default + Eq,
+{
     pub fn new() -> Self {
         GlkObjectStore {
             counter: 1,
@@ -108,7 +113,7 @@ where T: Default + GlkObjectClass, GlkObject<T>: Default + Eq {
         self.store.get(&id).cloned()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item=&GlkObject<T>>{
+    pub fn iter(&self) -> impl Iterator<Item = &GlkObject<T>> {
         self.store.values()
     }
 
@@ -122,6 +127,26 @@ where T: Default + GlkObjectClass, GlkObject<T>: Default + Eq {
 
     pub fn next_id(&self) -> u32 {
         self.counter
+    }
+
+    pub fn register_restored(&mut self, obj_glkobj: &GlkObject<T>, id: u32, rock: u32) {
+        assert!(id > 0 && !self.store.contains_key(&id));
+        self.counter = self.counter.max(id.saturating_add(1));
+        let mut obj = obj_glkobj.lock().unwrap();
+        obj.id = id;
+        obj.rock = rock;
+        obj.disprock = None;
+        if let Some(old_first) = &self.first {
+            obj.next = Some(old_first.clone());
+            let old_first: GlkObject<T> = old_first.into();
+            old_first.lock().unwrap().prev = Some(obj_glkobj.downgrade());
+        }
+        self.first = Some(obj_glkobj.downgrade());
+        self.store.insert(id, obj_glkobj.clone());
+    }
+
+    pub fn set_dispatch_rock(&mut self, obj_glkobj: &GlkObject<T>, rock: DispatchRock) {
+        obj_glkobj.lock().unwrap().disprock = Some(rock);
     }
 
     pub fn register(&mut self, obj_glkobj: &GlkObject<T>, rock: u32) {
@@ -138,7 +163,7 @@ where T: Default + GlkObjectClass, GlkObject<T>: Default + Eq {
             None => {
                 self.first = Some(obj_glkobj.downgrade());
                 self.store.insert(id, obj_glkobj.clone());
-            },
+            }
             Some(old_first) => {
                 obj.next = Some(old_first.clone());
                 let old_first: GlkObject<T> = old_first.into();
@@ -150,7 +175,11 @@ where T: Default + GlkObjectClass, GlkObject<T>: Default + Eq {
         };
     }
 
-    pub fn set_callbacks(&mut self, register_cb: DispatchRegisterCallback<T>, unregister_cb: DispatchUnregisterCallback<T>) {
+    pub fn set_callbacks(
+        &mut self,
+        register_cb: DispatchRegisterCallback<T>,
+        unregister_cb: DispatchUnregisterCallback<T>,
+    ) {
         self.register_cb = Some(register_cb);
         self.unregister_cb = Some(unregister_cb);
         for obj in self.store.values() {
@@ -162,6 +191,14 @@ where T: Default + GlkObjectClass, GlkObject<T>: Default + Eq {
 
     /** Remove an object from the store */
     pub fn unregister(&mut self, obj_glkobj: GlkObject<T>) {
+        self.unregister_inner(obj_glkobj, true);
+    }
+
+    pub(crate) fn unregister_for_restore(&mut self, obj_glkobj: GlkObject<T>) {
+        self.unregister_inner(obj_glkobj, false);
+    }
+
+    fn unregister_inner(&mut self, obj_glkobj: GlkObject<T>, check_ownership: bool) {
         let obj_ptr = obj_glkobj.as_ptr();
         let obj = obj_glkobj.lock().unwrap();
         let id = obj.id;
@@ -186,12 +223,22 @@ where T: Default + GlkObjectClass, GlkObject<T>: Default + Eq {
             self.unregister_cb.unwrap()(obj_ptr, self.object_class, disprock);
         }
         self.store.remove(&id).unwrap();
-        assert!(Arc::strong_count(&obj_glkobj) == 1, "Dangling strong reference to obj (ptr {:?}, class {}) after it was unregistered", obj_glkobj.as_ptr(), self.object_class);
+        if check_ownership {
+            assert!(
+                Arc::strong_count(&obj_glkobj) == 1,
+                "Dangling strong reference to obj (ptr {:?}, class {}) after it was unregistered",
+                obj_glkobj.as_ptr(),
+                self.object_class
+            );
+        }
     }
 }
 
 impl<T> Default for GlkObjectStore<T>
-where T: Default + GlkObjectClass, GlkObject<T>: Default + Eq {
+where
+    T: Default + GlkObjectClass,
+    GlkObject<T>: Default + Eq,
+{
     fn default() -> Self {
         GlkObjectStore::new()
     }
@@ -212,7 +259,9 @@ pub struct GlkObjectMetadata<T> {
 unsafe impl<T> Send for GlkObjectMetadata<T> {}
 
 impl<T> GlkObjectMetadata<T>
-where T: Default {
+where
+    T: Default,
+{
     fn new(obj: T) -> Self {
         GlkObjectMetadata {
             obj,
@@ -253,10 +302,10 @@ pub struct DispatchRockPtr {
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub union DispatchRock {
-    num: u32,
-    ptr: *const DispatchRockPtr,
+    pub num: u32,
+    pub ptr: *const DispatchRockPtr,
     // Add a u64 dummy variant to work around https://github.com/rust-lang/rust/issues/121408
-    dummy_variant: u64,
+    pub dummy_variant: u64,
 }
 
 pub type DispatchRegisterCallback<T> = fn(*const Mutex<GlkObjectMetadata<T>>, u32) -> DispatchRock;

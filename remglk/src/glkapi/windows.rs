@@ -54,7 +54,12 @@ pub struct WindowUpdate {
 }
 
 impl GlkWindow {
-    pub fn new(data: WindowData, id: u32, rock: u32, wintype: WindowType) -> (GlkWindowShared, GlkStreamShared) {
+    pub fn new(
+        data: WindowData,
+        id: u32,
+        rock: u32,
+        wintype: WindowType,
+    ) -> (GlkWindowShared, GlkStreamShared) {
         let win = GlkObject::new(GlkWindow {
             data,
             id,
@@ -135,16 +140,20 @@ impl GlkObjectClass for GlkWindow {
 
 #[enum_dispatch(WindowData)]
 pub trait WindowOperations {
-    fn clear(&mut self) -> Option<u32> {None}
+    fn clear(&mut self) -> Option<u32> {
+        None
+    }
     fn put_string(&mut self, _str: &str, _style: Option<u32>) {}
     fn set_colours(&mut self, _fg: u32, _bg: u32) {}
     fn set_css(&mut self, _name: &str, _val: Option<&CSSValue>) {}
     fn set_hyperlink(&mut self, _val: u32) {}
     fn set_style(&mut self, _val: u32) {}
-    fn update(&mut self, update: WindowUpdate) -> WindowUpdate {update}
+    fn update(&mut self, update: WindowUpdate) -> WindowUpdate {
+        update
+    }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Deserialize, Serialize)]
 pub struct WindowBox {
     pub bottom: f64,
     pub left: f64,
@@ -196,7 +205,11 @@ impl BufferWindow {
         let last_textrun = self.last_textrun();
         if force || !last_textrun.text.is_empty() {
             let new = last_textrun.clone("");
-            self.content.last_mut().unwrap().content.push(LineData::TextRun(new));
+            self.content
+                .last_mut()
+                .unwrap()
+                .content
+                .push(LineData::TextRun(new));
         }
     }
 
@@ -212,7 +225,7 @@ impl BufferWindow {
     fn last_textrun(&mut self) -> &mut TextRun {
         match self.content.last_mut().unwrap().content.last_mut().unwrap() {
             LineData::TextRun(textrun) => textrun,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -262,7 +275,7 @@ impl WindowOperations for BufferWindow {
     }
 
     fn set_hyperlink(&mut self, val: u32) {
-        let val = if val > 0 {Some(val)} else {None};
+        let val = if val > 0 { Some(val) } else { None };
         if self.last_textrun().hyperlink != val {
             self.clone_last_textrun(false);
             self.last_textrun().hyperlink = val;
@@ -295,10 +308,15 @@ impl WindowOperations for BufferWindow {
 
         // Exclude empty text runs
         for par in self.content.iter_mut() {
-            par.content = cleanup_paragraph_styles(par.content.drain(..).filter(|line| match line {
-                LineData::Image(_) => true,
-                LineData::TextRun(textrun) => !textrun.text.is_empty(),
-            }).collect());
+            par.content = cleanup_paragraph_styles(
+                par.content
+                    .drain(..)
+                    .filter(|line| match line {
+                        LineData::Image(_) => true,
+                        LineData::TextRun(textrun) => !textrun.text.is_empty(),
+                    })
+                    .collect(),
+            );
         }
         // Only send an update if there is new content or the window has been cleared
         if self.cleared || self.content.len() > 1 || !self.content[0].content.is_empty() {
@@ -330,12 +348,15 @@ pub struct GraphicsWindow {
 
 impl WindowOperations for GraphicsWindow {
     fn clear(&mut self) -> Option<u32> {
-        self.draw = self.draw.drain(..).filter(|op| {
-            matches!(op, GraphicsWindowOperation::SetColor(_))
-        }).collect();
+        self.draw = self
+            .draw
+            .drain(..)
+            .filter(|op| matches!(op, GraphicsWindowOperation::SetColor(_)))
+            .collect();
         self.draw.reverse();
         self.draw.shrink_to(1);
-        self.draw.push(GraphicsWindowOperation::Fill(FillOperation::default()));
+        self.draw
+            .push(GraphicsWindowOperation::Fill(FillOperation::default()));
         None
     }
 
@@ -408,10 +429,13 @@ impl GridWindow {
         self.width = width;
 
         // Set the right number of lines, as well as each line to have the right width
-        self.lines.resize(height, GridLine {
-            changed: true,
-            content: Vec::new(),
-        });
+        self.lines.resize(
+            height,
+            GridLine {
+                changed: true,
+                content: Vec::new(),
+            },
+        );
         for line in &mut self.lines {
             line.content.resize(width, TextRun::new(" "));
         }
@@ -441,8 +465,7 @@ impl WindowOperations for GridWindow {
             if char == '\n' {
                 self.x = 0;
                 self.y += 1;
-            }
-            else {
+            } else {
                 let line = &mut self.lines[self.y];
                 line.changed = true;
                 line.content[self.x] = self.current_styles.clone(&char.to_string());
@@ -495,33 +518,42 @@ impl WindowOperations for GridWindow {
         if self.lines.iter().any(|line| line.changed) {
             let mut grid_content = GridWindowContentUpdate {
                 base: TextualWindowUpdate::new(update.id),
-                lines: self.lines.iter_mut().enumerate().filter_map(|(i, line)| {
-                    if !line.changed {
-                        return None;
-                    }
-                    line.changed = false;
-                    // Merge grid characters with the same styles together
-                    let content = line.content.iter().fold(vec![], |mut acc, cur| {
-                        if acc.is_empty() {
-                            return vec![cur.clone(&cur.text)];
+                lines: self
+                    .lines
+                    .iter_mut()
+                    .enumerate()
+                    .filter_map(|(i, line)| {
+                        if !line.changed {
+                            return None;
                         }
-                        else {
-                            let last = acc.last_mut().unwrap();
-                            if cur == last {
-                                last.text.push_str(&cur.text);
-                            }
-                            else {
-                                let new = cur.clone(&cur.text);
-                                acc.push(new);
-                            }
-                        }
-                        acc
-                    }).into_iter().map(LineData::TextRun).collect();
-                    Some(GridWindowLine {
-                        content: cleanup_paragraph_styles(content),
-                        line: i as u32,
+                        line.changed = false;
+                        // Merge grid characters with the same styles together
+                        let content = line
+                            .content
+                            .iter()
+                            .fold(vec![], |mut acc, cur| {
+                                if acc.is_empty() {
+                                    return vec![cur.clone(&cur.text)];
+                                } else {
+                                    let last = acc.last_mut().unwrap();
+                                    if cur == last {
+                                        last.text.push_str(&cur.text);
+                                    } else {
+                                        let new = cur.clone(&cur.text);
+                                        acc.push(new);
+                                    }
+                                }
+                                acc
+                            })
+                            .into_iter()
+                            .map(LineData::TextRun)
+                            .collect();
+                        Some(GridWindowLine {
+                            content: cleanup_paragraph_styles(content),
+                            line: i as u32,
+                        })
                     })
-                }).collect(),
+                    .collect(),
             };
             if self.cleared {
                 grid_content.base.clear = true;
@@ -535,8 +567,7 @@ impl WindowOperations for GridWindow {
         if update.input.text_input_type.is_some() {
             let (x, y) = if self.fit_cursor() {
                 (self.width - 1, self.height - 1)
-            }
-            else {
+            } else {
                 (self.x, self.y)
             };
             update.input.xpos = Some(x as u32);
@@ -579,12 +610,311 @@ impl PairWindow {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub(crate) enum WindowDataState {
+    Blank,
+    Pair {
+        backward: bool,
+        border: bool,
+        child1: u32,
+        child2: u32,
+        dir: u32,
+        fixed: bool,
+        key: u32,
+        size: u32,
+        vertical: bool,
+    },
+    Buffer(BufferWindowState),
+    Graphics(GraphicsWindowState),
+    Grid(GridWindowState),
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct BufferWindowState {
+    cleared: bool,
+    cleared_bg: Option<u32>,
+    cleared_fg: Option<u32>,
+    content: Vec<BufferWindowParagraphUpdate>,
+    echo_line_input: bool,
+    last_bg: Option<u32>,
+    last_fg: Option<u32>,
+    line_input_buffer: Option<SavedBuffer>,
+    stylehints: WindowStyles,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct GraphicsWindowState {
+    draw: Vec<GraphicsWindowOperation>,
+    height: usize,
+    uni_input: bool,
+    width: usize,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct GridWindowState {
+    cleared: bool,
+    cleared_bg: Option<u32>,
+    cleared_fg: Option<u32>,
+    current_styles: TextRun,
+    height: usize,
+    last_bg: Option<u32>,
+    last_fg: Option<u32>,
+    line_input_buffer: Option<SavedBuffer>,
+    lines: Vec<GridLineState>,
+    stylehints: WindowStyles,
+    width: usize,
+    x: usize,
+    y: usize,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct GridLineState {
+    content: Vec<TextRun>,
+}
+
+impl WindowDataState {
+    pub(crate) fn snapshot<F>(
+        data: &WindowData,
+        array_disprock: Option<DispatchRock>,
+        mut locate: F,
+    ) -> Result<Self, AutosaveError>
+    where
+        F: FnMut(&GlkOwnedBuffer, Option<DispatchRock>) -> Result<SavedBuffer, AutosaveError>,
+    {
+        Ok(match data {
+            WindowData::Blank(_) => Self::Blank,
+            WindowData::Pair(data) => Self::Pair {
+                backward: data.backward,
+                border: data.border,
+                child1: weak_id(&data.child1)?,
+                child2: weak_id(&data.child2)?,
+                dir: data.dir,
+                fixed: data.fixed,
+                key: weak_id(&data.key)?,
+                size: data.size,
+                vertical: data.vertical,
+            },
+            WindowData::Buffer(data) => Self::Buffer(BufferWindowState {
+                cleared: data.cleared,
+                cleared_bg: data.cleared_bg,
+                cleared_fg: data.cleared_fg,
+                content: data.content.clone(),
+                echo_line_input: data.echo_line_input,
+                last_bg: data.last_bg,
+                last_fg: data.last_fg,
+                line_input_buffer: data
+                    .line_input_buffer
+                    .as_ref()
+                    .map(|buf| locate(buf, array_disprock))
+                    .transpose()?,
+                stylehints: data.stylehints.clone(),
+            }),
+            WindowData::Graphics(data) => Self::Graphics(GraphicsWindowState {
+                draw: data.draw.clone(),
+                height: data.height,
+                uni_input: data.uni_input,
+                width: data.width,
+            }),
+            WindowData::Grid(data) => Self::Grid(GridWindowState {
+                cleared: data.cleared,
+                cleared_bg: data.cleared_bg,
+                cleared_fg: data.cleared_fg,
+                current_styles: Clone::clone(&data.current_styles),
+                height: data.height,
+                last_bg: data.last_bg,
+                last_fg: data.last_fg,
+                line_input_buffer: data
+                    .line_input_buffer
+                    .as_ref()
+                    .map(|buf| locate(buf, array_disprock))
+                    .transpose()?,
+                lines: data
+                    .lines
+                    .iter()
+                    .map(|line| GridLineState {
+                        content: line.content.clone(),
+                    })
+                    .collect(),
+                stylehints: data.stylehints.clone(),
+                width: data.width,
+                x: data.x,
+                y: data.y,
+            }),
+        })
+    }
+
+    pub(crate) fn line_input_buffer(&self) -> Option<&SavedBuffer> {
+        match self {
+            Self::Buffer(data) => data.line_input_buffer.as_ref(),
+            Self::Grid(data) => data.line_input_buffer.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), AutosaveError> {
+        match self {
+            Self::Pair {
+                backward,
+                dir,
+                vertical,
+                ..
+            } => {
+                let expected_vertical = *dir == winmethod_Left || *dir == winmethod_Right;
+                let expected_backward = *dir == winmethod_Left || *dir == winmethod_Above;
+                if ![
+                    winmethod_Left,
+                    winmethod_Right,
+                    winmethod_Above,
+                    winmethod_Below,
+                ]
+                .contains(dir)
+                    || *vertical != expected_vertical
+                    || *backward != expected_backward
+                {
+                    return Err(AutosaveError::MalformedGraph(
+                        "pair direction flags are inconsistent".into(),
+                    ));
+                }
+            }
+            Self::Buffer(data) => {
+                let Some(last_paragraph) = data.content.last() else {
+                    return Err(AutosaveError::MalformedGraph(
+                        "buffer window has no final text run".into(),
+                    ));
+                };
+                if !matches!(last_paragraph.content.last(), Some(LineData::TextRun(_))) {
+                    return Err(AutosaveError::MalformedGraph(
+                        "buffer window has no final text run".into(),
+                    ));
+                }
+            }
+            Self::Grid(data) => {
+                let cells = data.height.checked_mul(data.width).ok_or_else(|| {
+                    AutosaveError::LimitExceeded("grid dimensions overflow".into())
+                })?;
+                if data.height > MAX_WINDOW_DIMENSION
+                    || data.width > MAX_WINDOW_DIMENSION
+                    || cells > MAX_GRID_CELLS
+                {
+                    return Err(AutosaveError::LimitExceeded(
+                        "grid dimensions exceed autosave limits".into(),
+                    ));
+                }
+                if data.lines.len() != data.height
+                    || data
+                        .lines
+                        .iter()
+                        .any(|line| line.content.len() != data.width)
+                {
+                    return Err(AutosaveError::MalformedGraph(
+                        "grid line dimensions do not match the window".into(),
+                    ));
+                }
+                if data.line_input_buffer.is_some() && (data.height == 0 || data.width == 0) {
+                    return Err(AutosaveError::MalformedGraph(
+                        "zero-sized grid cannot have pending input".into(),
+                    ));
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    pub(crate) fn restore(self, line_input_buffer: Option<GlkOwnedBuffer>) -> WindowData {
+        match self {
+            Self::Blank => BlankWindow {}.into(),
+            Self::Pair {
+                backward,
+                border,
+                dir,
+                fixed,
+                size,
+                vertical,
+                ..
+            } => PairWindow {
+                backward,
+                border,
+                dir,
+                fixed,
+                size,
+                vertical,
+                ..Default::default()
+            }
+            .into(),
+            Self::Buffer(data) => BufferWindow {
+                cleared: true,
+                cleared_bg: data.cleared_bg.or(data.last_bg),
+                cleared_fg: data.cleared_fg.or(data.last_fg),
+                content: data.content,
+                echo_line_input: data.echo_line_input,
+                last_bg: data.last_bg,
+                last_fg: data.last_fg,
+                line_input_buffer,
+                sent_stylehints: false,
+                stylehints: data.stylehints,
+            }
+            .into(),
+            Self::Graphics(data) => GraphicsWindow {
+                draw: data.draw,
+                height: data.height,
+                uni_input: data.uni_input,
+                width: data.width,
+            }
+            .into(),
+            Self::Grid(data) => GridWindow {
+                cleared: true,
+                cleared_bg: data.cleared_bg.or(data.last_bg),
+                cleared_fg: data.cleared_fg.or(data.last_fg),
+                current_styles: data.current_styles,
+                height: data.height,
+                last_bg: data.last_bg,
+                last_fg: data.last_fg,
+                line_input_buffer,
+                lines: data
+                    .lines
+                    .into_iter()
+                    .map(|line| GridLine {
+                        changed: true,
+                        content: line.content,
+                    })
+                    .collect(),
+                sent_stylehints: false,
+                stylehints: data.stylehints,
+                width: data.width,
+                x: data.x,
+                y: data.y,
+            }
+            .into(),
+        }
+    }
+
+    pub(crate) fn pair_links(&self) -> Option<(u32, u32, u32)> {
+        match self {
+            Self::Pair {
+                child1,
+                child2,
+                key,
+                ..
+            } => Some((*child1, *child2, *key)),
+            _ => None,
+        }
+    }
+}
+
+fn weak_id<T>(weak: &GlkObjectWeak<T>) -> Result<u32, AutosaveError> {
+    weak.upgrade()
+        .map(|obj| obj.lock().unwrap().id)
+        .ok_or_else(|| AutosaveError::MalformedGraph("dangling window link".into()))
+}
+
 impl WindowOperations for PairWindow {}
 
 /** Remove css_styles from a paragraph when empty */
 fn cleanup_paragraph_styles(par: Vec<LineData>) -> Vec<LineData> {
-    par.into_iter().map(|content: LineData| {
-        match content {
+    par.into_iter()
+        .map(|content: LineData| match content {
             LineData::TextRun(mut tr) => {
                 if let Some(ref styles) = tr.css_styles {
                     if lock!(styles).is_empty() {
@@ -592,20 +922,21 @@ fn cleanup_paragraph_styles(par: Vec<LineData>) -> Vec<LineData> {
                     }
                 }
                 LineData::TextRun(tr)
-            },
+            }
             x => x,
-        }
-    }).collect()
+        })
+        .collect()
 }
 
 fn set_css(css_styles: &mut Option<Arc<Mutex<CSSProperties>>>, name: &str, val: Option<&CSSValue>) {
     // We assume that the calling function has already checked if this style is already set
     // We need to either clone the existing styles, or insert an empty one
-    let mut styles = css_styles.take().map_or(HashMap::new(), |old| lock!(old).clone());
+    let mut styles = css_styles
+        .take()
+        .map_or(HashMap::new(), |old| lock!(old).clone());
     if let Some(style) = val {
         styles.insert(name.to_string(), style.clone());
-    }
-    else {
+    } else {
         styles.remove(name);
     }
     let _ = css_styles.insert(Arc::new(Mutex::new(styles)));
@@ -616,27 +947,30 @@ macro_rules! set_window_colours {
     ($self: ident, $fg: expr, $bg: expr) => {
         #[allow(non_upper_case_globals)]
         match $fg {
-            0 ..= 0xFFFFFF => {
+            0..=0xFFFFFF => {
                 $self.last_fg = Some($fg);
                 $self.set_css("color", Some(&CSSValue::String(colour_code_to_css($fg))));
-            },
+            }
             zcolor_Default => {
                 $self.last_fg = None;
                 $self.set_css("color", None);
-            },
-            _ => {},
+            }
+            _ => {}
         };
         #[allow(non_upper_case_globals)]
         match $bg {
-            0 ..= 0xFFFFFF => {
+            0..=0xFFFFFF => {
                 $self.last_bg = Some($bg);
-                $self.set_css("background-color", Some(&CSSValue::String(colour_code_to_css($bg))));
-            },
+                $self.set_css(
+                    "background-color",
+                    Some(&CSSValue::String(colour_code_to_css($bg))),
+                );
+            }
             zcolor_Default => {
                 $self.last_bg = None;
                 $self.set_css("background-color", None);
-            },
-            _ => {},
+            }
+            _ => {}
         };
     };
 }

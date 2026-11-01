@@ -228,6 +228,7 @@ pub struct Metrics {
 }
 
 /** Normalised screen and font metrics */
+#[derive(Clone, Deserialize, Serialize)]
 pub struct NormalisedMetrics {
     /** Buffer character height */
     pub buffercharheight: f64,
@@ -258,7 +259,7 @@ pub struct NormalisedMetrics {
 }
 
 /** GlkApi/RemGlk->GlkOte content updates */
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[serde(tag = "type")]
 pub enum Update {
@@ -269,19 +270,19 @@ pub enum Update {
     State(StateUpdate),
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ErrorUpdate {
     /** Error message */
     pub message: String,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct PassUpdate {}
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RetryUpdate {}
 
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct StateUpdate {
     /* Library specific autorestore data */
     //pub autorestore: Option,
@@ -317,7 +318,7 @@ pub struct StateUpdate {
 // Update structures
 
 /** Content update */
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ContentUpdate {
     Buffer(BufferWindowContentUpdate),
@@ -325,7 +326,7 @@ pub enum ContentUpdate {
     Grid(GridWindowContentUpdate),
 }
 
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct TextualWindowUpdate {
     /** Window ID */
     pub id: u32,
@@ -341,7 +342,7 @@ pub struct TextualWindowUpdate {
 }
 
 /** Buffer window content update */
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BufferWindowContentUpdate {
     #[serde(flatten)]
     pub base: TextualWindowUpdate,
@@ -351,7 +352,8 @@ pub struct BufferWindowContentUpdate {
 }
 
 /** A buffer window paragraph */
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct BufferWindowParagraphUpdate {
     /** Append to last input */
     #[serde(skip_serializing_if = "Not::not")]
@@ -365,7 +367,7 @@ pub struct BufferWindowParagraphUpdate {
 }
 
 /** Graphics window content update */
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct GraphicsWindowContentUpdate {
     /** Window ID */
     pub id: u32,
@@ -375,7 +377,7 @@ pub struct GraphicsWindowContentUpdate {
 }
 
 /** Graphics window operation */
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[serde(tag = "special")]
 pub enum GraphicsWindowOperation {
@@ -385,7 +387,7 @@ pub enum GraphicsWindowOperation {
 }
 
 /** Fill operation */
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct FillOperation {
     /** CSS color */
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -403,7 +405,7 @@ pub struct FillOperation {
 }
 
 /** Image operation */
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ImageOperation {
     pub height: u32,
     /** Image number (from Blorb or similar) */
@@ -416,21 +418,21 @@ pub struct ImageOperation {
 }
 
 /** Setcolor operation */
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SetColorOperation {
     /** CSS color */
     pub color: String,
 }
 
 /** Grid window content update */
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct GridWindowContentUpdate {
     #[serde(flatten)]
     pub base: TextualWindowUpdate,
     /** Lines data */
     pub lines: Vec<GridWindowLine>,
 }
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct GridWindowLine {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub content: Vec<LineData>,
@@ -438,7 +440,7 @@ pub struct GridWindowLine {
 }
 
 /** Line data */
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[serde(tag = "special")]
 pub enum LineData {
@@ -449,7 +451,7 @@ pub enum LineData {
 }
 
 /** Buffer window image */
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BufferWindowImage {
     /* Image alignment */
     pub alignment: BufferWindowImageAlignment,
@@ -469,7 +471,7 @@ pub struct BufferWindowImage {
     pub winmaxwidth: Option<Option<f64>>,
 }
 
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct BufferWindowImageHeight {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aspectheight: Option<f64>,
@@ -479,7 +481,7 @@ pub struct BufferWindowImageHeight {
     pub height: Option<u32>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum BufferWindowImageWidth {
     Width(u32),
@@ -487,7 +489,7 @@ pub enum BufferWindowImageWidth {
 }
 
 /** Text run */
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct TextRun {
     /** Additional CSS styles */
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -496,14 +498,18 @@ pub struct TextRun {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hyperlink: Option<u32>,
     /** Run style */
-    #[serde(serialize_with = "serialize_style_name")]
+    #[serde(
+        deserialize_with = "deserialize_style_name",
+        serialize_with = "serialize_style_name"
+    )]
     pub style: u32,
     /** Run content */
     pub text: String,
 }
 
 /** Windows with active input */
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct InputUpdate {
     /** Generation number, for when the textual input was first requested */
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -537,7 +543,7 @@ pub struct InputUpdate {
     pub ypos: Option<u32>,
 }
 
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct SoundChannelUpdate {
     /** Sound channel ID */
     pub id: u32,
@@ -547,7 +553,7 @@ pub struct SoundChannelUpdate {
 }
 
 /** Sound channel operation */
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[serde(tag = "op")]
 pub enum SoundChannelOperation {
@@ -558,7 +564,7 @@ pub enum SoundChannelOperation {
     Volume(SetVolumeOperation),
 }
 
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct PlayOperation {
     /** Notification value */
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -570,7 +576,7 @@ pub struct PlayOperation {
     pub snd: u32,
 }
 
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct SetVolumeOperation {
     /** Duration in milliseconds */
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -582,7 +588,7 @@ pub struct SetVolumeOperation {
     pub vol: f64,
 }
 
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct SpecialInput {
     /** File mode */
     pub filemode: FileMode,
@@ -596,7 +602,7 @@ pub struct SpecialInput {
 }
 
 /** Updates to window (new windows, or changes to their arrangements) */
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct WindowUpdate {
     /** Graphics height (pixels) */
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -639,7 +645,7 @@ pub struct WindowUpdate {
  *   Ex: `background-color: #FFF, color: #000, reverse: 1` will be displayed as white text on a black background
  */
 pub type CSSProperties = HashMap<String, CSSValue>;
-#[derive(Clone, PartialEq, Serialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CSSValue {
     String(String),
@@ -652,6 +658,9 @@ pub enum CSSValue {
 */
 pub type WindowStyles = HashMap<String, CSSProperties>;
 
-#[derive(Copy, Clone, PartialEq, Serialize)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum TextInputType {Char, Line}
+pub enum TextInputType {
+    Char,
+    Line,
+}
